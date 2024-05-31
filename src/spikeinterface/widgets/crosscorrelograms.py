@@ -35,16 +35,16 @@ class CrossCorrelogramsWidget(BaseWidget):
     """
 
     def __init__(
-        self,
-        sorting_analyzer_or_sorting: Union[SortingAnalyzer, BaseSorting],
-        unit_ids=None,
-        min_similarity_for_correlograms=0.2,
-        window_ms=100.0,
-        bin_ms=1.0,
-        hide_unit_selector=False,
-        unit_colors=None,
-        backend=None,
-        **backend_kwargs,
+            self,
+            sorting_analyzer_or_sorting: Union[SortingAnalyzer, BaseSorting],
+            unit_ids=None,
+            min_similarity_for_correlograms=0.2,
+            window_ms=100.0,
+            bin_ms=1.0,
+            hide_unit_selector=False,
+            unit_colors=None,
+            backend=None,
+            **backend_kwargs,
     ):
 
         if not isinstance(sorting_analyzer_or_sorting, BaseSorting):
@@ -119,6 +119,62 @@ class CrossCorrelogramsWidget(BaseWidget):
         for i, unit_id in enumerate(unit_ids):
             self.axes[0, i].set_title(str(unit_id))
             self.axes[-1, i].set_xlabel("CCG (ms)")
+
+    def plot_ipywidgets(self, data_plot, **backend_kwargs):
+        import matplotlib.pyplot as plt
+        import ipywidgets.widgets as W
+        from IPython.display import display
+        from .utils_ipywidgets import check_ipywidget_backend, UnitSelector
+
+        check_ipywidget_backend()
+
+        self.next_data_plot = data_plot.copy()
+        ratios = [0.4, 0.6]
+        cm = 1 / 2.54
+
+        width_cm = backend_kwargs["width_cm"]
+        height_cm = backend_kwargs["height_cm"]
+
+        with plt.ioff():
+            output = W.Output()
+            with output:
+                self.figure = plt.figure(figsize=((ratios[1] * width_cm) * cm, height_cm * cm))
+                plt.show()
+
+        self.unit_selector = UnitSelector(data_plot['unit_ids'])
+        self.unit_selector.value = list(data_plot['unit_ids'])[:1]
+
+        left_sidebar = W.VBox(
+            children=[
+                self.unit_selector,
+            ],
+            layout=W.Layout(align_items="center", width="4cm", height="100%"),
+        )
+
+        self.widget = W.AppLayout(
+            center=self.figure.canvas,
+            left_sidebar=left_sidebar,
+            pane_width=ratios + [0],
+        )
+
+        self._update_plot()
+
+        self.unit_selector.observe(self._update_plot, names="value", type="change")
+
+        if backend_kwargs["display"]:
+            display(self.widget)
+
+    def _update_plot(self, change=None):
+        self.figure.clear()
+        data_plot = self.next_data_plot
+        data_plot["unit_ids"] = self.unit_selector.value
+        data_plot["plot_legend"] = False
+
+        backend_kwargs = dict(figure=self.figure, axes=None, ax=None)
+        self.plot_matplotlib(data_plot, **backend_kwargs)
+        self.figure.subplots_adjust(hspace=0.4, wspace=0.4)
+        self.figure.canvas.draw()
+        self.figure.canvas.flush_events()
 
     def plot_sortingview(self, data_plot, **backend_kwargs):
         import sortingview.views as vv
